@@ -17,10 +17,8 @@ from selenium.webdriver.support import expected_conditions as EC
 CHROME_DRIVER_PATH = '/usr/local/bin/chromedriver'
 CHROME_JSON_URL = 'https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone-with-downloads.json'
 
-# === CONFIG - Customize for your store and payment ===
-
+# === CONFIG - Edit for your own Shopify/testing info ===
 STORE_URL = 'https://theventashop.com/'
-
 SHIPPING_INFO = {
     'email': 'test@example.com',
     'first_name': 'John',
@@ -32,14 +30,12 @@ SHIPPING_INFO = {
     'zip': '90001',
     'phone': '1234567890'
 }
-
 PAYMENT_INFO = {
-    'card_number': '5489010373940608',  # test card number
+    'card_number': '5489010373940608',  # test card
     'name_on_card': 'John Doe',
     'expiry': '12/34',
     'cvv': '123'
 }
-
 
 def get_chrome_version():
     cmds = ['google-chrome --version', 'chromium-browser --version', 'chromium --version']
@@ -53,7 +49,6 @@ def get_chrome_version():
             continue
     print("Could not detect Chrome version.")
     sys.exit(1)
-
 
 def download_and_install_chromedriver(driver_url):
     zip_path = '/tmp/chromedriver_linux64.zip'
@@ -71,7 +66,6 @@ def download_and_install_chromedriver(driver_url):
     os.chmod(CHROME_DRIVER_PATH, 0o755)
     print("ChromeDriver installed successfully.")
 
-
 def install_best_chromedriver():
     chrome_ver = get_chrome_version()
     major_ver = int(chrome_ver.split('.')[0])
@@ -81,21 +75,18 @@ def install_best_chromedriver():
     resp = requests.get(CHROME_JSON_URL)
     data = resp.json()
 
-    # FIX: Use 'milestones' instead of 'versions'
     milestones_list = data.get('milestones')
     if not milestones_list:
         print("JSON format changed, 'milestones' key not found.")
         sys.exit(1)
 
-    # Find the highest milestone not greater than our Chrome version, with downloads
     suitable = [m for m in milestones_list if int(m['milestone']) <= major_ver and m['downloads'].get('chromedriver')]
     if not suitable:
         print("No suitable ChromeDriver versions found for your Chrome version.")
         sys.exit(1)
 
-    # Get latest version among all suitable
     best_version = max(suitable, key=lambda m: version.parse(m['version']))
-    milestone = best_version['milestone']
+    milestone = int(best_version['milestone'])
     print(f"Best matching milestone: {milestone} (version {best_version['version']})")
     chromedriver_downloads = best_version['downloads']['chromedriver']
     linux64_download = next((d for d in chromedriver_downloads if d['platform'] == 'linux64'), None)
@@ -106,7 +97,6 @@ def install_best_chromedriver():
     driver_url = linux64_download['url']
     download_and_install_chromedriver(driver_url)
 
-
 def init_driver():
     options = Options()
     options.add_argument("--headless")
@@ -116,14 +106,11 @@ def init_driver():
     driver = webdriver.Chrome(CHROME_DRIVER_PATH, options=options)
     return driver
 
-
 def get_cheapest_product(driver):
     driver.get(STORE_URL)
     time.sleep(3)
-
     products = driver.find_elements(By.CSS_SELECTOR, 'a.full-unstyled-link')
     product_data = []
-
     for product in products:
         title = product.text.strip()
         if not title:
@@ -136,13 +123,10 @@ def get_cheapest_product(driver):
             product_data.append({'title': title, 'price': price, 'link': link})
         except Exception:
             continue
-
     if not product_data:
         raise Exception("No products found")
-
     cheapest = min(product_data, key=lambda x: x['price'])
     return cheapest
-
 
 def add_product_to_cart(driver, product_link):
     driver.get(product_link)
@@ -156,7 +140,6 @@ def add_product_to_cart(driver, product_link):
     checkout_btn.click()
     time.sleep(3)
 
-
 def fill_shipping_info(driver):
     wait = WebDriverWait(driver, 10)
     wait.until(EC.presence_of_element_located((By.ID, 'checkout_email')))
@@ -167,16 +150,13 @@ def fill_shipping_info(driver):
     driver.find_element(By.ID, 'checkout_shipping_address_city').send_keys(SHIPPING_INFO['city'])
     driver.find_element(By.ID, 'checkout_shipping_address_zip').send_keys(SHIPPING_INFO['zip'])
     driver.find_element(By.ID, 'checkout_shipping_address_phone').send_keys(SHIPPING_INFO['phone'])
-
     country = driver.find_element(By.ID, 'checkout_shipping_address_country')
     country.send_keys(SHIPPING_INFO['country'])
     province = driver.find_element(By.ID, 'checkout_shipping_address_province')
     province.send_keys(SHIPPING_INFO['province'])
-
     continue_btn = driver.find_element(By.CSS_SELECTOR, 'button[name="button"]')
     continue_btn.click()
     time.sleep(5)
-
 
 def fill_payment_info(driver):
     wait = WebDriverWait(driver, 15)
@@ -190,7 +170,6 @@ def fill_payment_info(driver):
     pay_btn = wait.until(EC.element_to_be_clickable((By.ID, 'continue_button')))
     pay_btn.click()
     time.sleep(10)
-
 
 def main():
     install_best_chromedriver()
@@ -206,7 +185,6 @@ def main():
         print("Error:", e)
     finally:
         driver.quit()
-
 
 if __name__ == '__main__':
     main()
