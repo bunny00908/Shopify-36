@@ -1,26 +1,26 @@
 import json
 import os
-import platform
 import re
-import requests
 import shutil
 import subprocess
 import sys
 import time
 from packaging import version
 
+import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
+
 CHROME_DRIVER_PATH = '/usr/local/bin/chromedriver'
-JSON_URL = 'https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone-with-downloads.json'
+CHROME_JSON_URL = 'https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone-with-downloads.json'
 
-# === Config - Fill in your Shopify info here ===
+# === CONFIG - Customize for your store and payment ===
 
-STORE_URL = 'https://theblazeon.com'  # Change to your Shopify store URL
+STORE_URL = 'https://theventashop.com/'
 
 SHIPPING_INFO = {
     'email': 'test@example.com',
@@ -35,13 +35,12 @@ SHIPPING_INFO = {
 }
 
 PAYMENT_INFO = {
-    'card_number': '5157216851442709',  # Use test card number
+    'card_number': '5489010373940608',  # test card number
     'name_on_card': 'John Doe',
-    'expiry': '12/27',
-    'cvv': '643'
+    'expiry': '12/28',
+    'cvv': '464'
 }
 
-# --- Functions to detect Chrome version and install ChromeDriver ---
 
 def get_chrome_version():
     cmds = ['google-chrome --version', 'chromium-browser --version', 'chromium --version']
@@ -55,6 +54,7 @@ def get_chrome_version():
             continue
     print("Could not detect Chrome version.")
     sys.exit(1)
+
 
 def download_and_install_chromedriver(driver_url):
     zip_path = '/tmp/chromedriver_linux64.zip'
@@ -72,35 +72,44 @@ def download_and_install_chromedriver(driver_url):
     os.chmod(CHROME_DRIVER_PATH, 0o755)
     print("ChromeDriver installed successfully.")
 
+
 def install_best_chromedriver():
     chrome_ver = get_chrome_version()
     major_ver = int(chrome_ver.split('.')[0])
     print(f"Detected Chrome version: {chrome_ver} (major: {major_ver})")
 
     print(f"Fetching ChromeDriver versions JSON...")
-    resp = requests.get(JSON_URL)
+    resp = requests.get(CHROME_JSON_URL)
     data = resp.json()
 
-    milestones = [v['milestone'] for v in data['versions'] if v['milestone'] <= major_ver and v['downloads'].get('chromedriver')]
-    if not milestones:
-        print("No suitable ChromeDriver versions found in JSON.")
+    # robust JSON parsing - check keys
+    versions_list = data.get('versions')
+    if not versions_list:
+        print("JSON format changed, 'versions' key not found.")
         sys.exit(1)
 
-    best_milestone = max(milestones)
-    print(f"Best matching milestone: {best_milestone}")
+    # Filter milestones with chromedriver downloads available
+    milestones = [v for v in versions_list if v['milestone'] <= major_ver and v['downloads'].get('chromedriver')]
 
-    version_info = next(v for v in data['versions'] if v['milestone'] == best_milestone)
-    chromedriver_downloads = version_info['downloads']['chromedriver']
+    if not milestones:
+        print("No suitable ChromeDriver versions found for your Chrome version.")
+        sys.exit(1)
+
+    best_version = max(milestones, key=lambda v: version.parse(v['version']))
+
+    milestone = best_version['milestone']
+    print(f"Best matching milestone: {milestone} (version {best_version['version']})")
+
+    chromedriver_downloads = best_version['downloads']['chromedriver']
 
     linux64_download = next((d for d in chromedriver_downloads if d['platform'] == 'linux64'), None)
     if not linux64_download:
-        print(f"No linux64 ChromeDriver download found for milestone {best_milestone}.")
+        print(f"No linux64 ChromeDriver download found for milestone {milestone}.")
         sys.exit(1)
 
     driver_url = linux64_download['url']
     download_and_install_chromedriver(driver_url)
 
-# --- Selenium Shopify automation functions ---
 
 def init_driver():
     options = Options()
@@ -110,6 +119,7 @@ def init_driver():
     options.add_argument("--remote-debugging-port=9222")
     driver = webdriver.Chrome(CHROME_DRIVER_PATH, options=options)
     return driver
+
 
 def get_cheapest_product(driver):
     driver.get(STORE_URL)
@@ -137,6 +147,7 @@ def get_cheapest_product(driver):
     cheapest = min(product_data, key=lambda x: x['price'])
     return cheapest
 
+
 def add_product_to_cart(driver, product_link):
     driver.get(product_link)
     wait = WebDriverWait(driver, 10)
@@ -148,6 +159,7 @@ def add_product_to_cart(driver, product_link):
     checkout_btn = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'button[name="checkout"], a[href*="/checkouts/"]')))
     checkout_btn.click()
     time.sleep(3)
+
 
 def fill_shipping_info(driver):
     wait = WebDriverWait(driver, 10)
@@ -169,6 +181,7 @@ def fill_shipping_info(driver):
     continue_btn.click()
     time.sleep(5)
 
+
 def fill_payment_info(driver):
     wait = WebDriverWait(driver, 15)
     iframe = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, 'iframe[name^="card-fields"]')))
@@ -182,7 +195,6 @@ def fill_payment_info(driver):
     pay_btn.click()
     time.sleep(10)
 
-# --- Main ---
 
 def main():
     install_best_chromedriver()
@@ -198,6 +210,7 @@ def main():
         print("Error:", e)
     finally:
         driver.quit()
+
 
 if __name__ == '__main__':
     main()
