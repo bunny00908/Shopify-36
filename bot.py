@@ -14,7 +14,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-
 CHROME_DRIVER_PATH = '/usr/local/bin/chromedriver'
 CHROME_JSON_URL = 'https://googlechromelabs.github.io/chrome-for-testing/latest-versions-per-milestone-with-downloads.json'
 
@@ -37,8 +36,8 @@ SHIPPING_INFO = {
 PAYMENT_INFO = {
     'card_number': '5489010373940608',  # test card number
     'name_on_card': 'John Doe',
-    'expiry': '12/28',
-    'cvv': '464'
+    'expiry': '12/34',
+    'cvv': '123'
 }
 
 
@@ -82,26 +81,23 @@ def install_best_chromedriver():
     resp = requests.get(CHROME_JSON_URL)
     data = resp.json()
 
-    # robust JSON parsing - check keys
-    versions_list = data.get('versions')
-    if not versions_list:
-        print("JSON format changed, 'versions' key not found.")
+    # FIX: Use 'milestones' instead of 'versions'
+    milestones_list = data.get('milestones')
+    if not milestones_list:
+        print("JSON format changed, 'milestones' key not found.")
         sys.exit(1)
 
-    # Filter milestones with chromedriver downloads available
-    milestones = [v for v in versions_list if v['milestone'] <= major_ver and v['downloads'].get('chromedriver')]
-
-    if not milestones:
+    # Find the highest milestone not greater than our Chrome version, with downloads
+    suitable = [m for m in milestones_list if int(m['milestone']) <= major_ver and m['downloads'].get('chromedriver')]
+    if not suitable:
         print("No suitable ChromeDriver versions found for your Chrome version.")
         sys.exit(1)
 
-    best_version = max(milestones, key=lambda v: version.parse(v['version']))
-
+    # Get latest version among all suitable
+    best_version = max(suitable, key=lambda m: version.parse(m['version']))
     milestone = best_version['milestone']
     print(f"Best matching milestone: {milestone} (version {best_version['version']})")
-
     chromedriver_downloads = best_version['downloads']['chromedriver']
-
     linux64_download = next((d for d in chromedriver_downloads if d['platform'] == 'linux64'), None)
     if not linux64_download:
         print(f"No linux64 ChromeDriver download found for milestone {milestone}.")
